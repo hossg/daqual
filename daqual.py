@@ -11,8 +11,8 @@ import botocore
 BUCKET_NAME = 'daqual' # replace with your bucket name
 s3 = boto3.resource('s3')
 
-# retrieve objects from S3
-def getObjectAsDF(objectkey):
+# retrieve objects from S3 and return a pandas DataFrame
+def retrieveObjectFromProvider(objectkey):
     tempfilename='./temp/' + objectkey
     try:
         s3.Bucket(BUCKET_NAME).download_file(objectkey, tempfilename)
@@ -20,7 +20,8 @@ def getObjectAsDF(objectkey):
         logger.error("Could not retrieve object {}".format(objectkey))
         return(0, None)
     df = pd.read_csv(tempfilename)
-    # TODO - tidy up/remove tempfile
+    # noTODO - tidy up/remove tempfile; actually no - because we may want to use the actual file objects directly
+    # instead of only accessing via dataframes
     logger.info("Retrieved and converted object {}".format(objectkey))
     return (1,df)
 
@@ -42,25 +43,25 @@ def set_quality_score(objectkey, quality):
 
 
 # TODO - refactor to pass around object names as the key, rather than dataframes to allow alternate implementations not involving pandas
-dataframes = {}
+object_list = {}
 def get_dataframe(object_name):
-    return dataframes[object_name]['dataframe']
+    return object_list[object_name]['dataframe']
 
 # each item in the object list is thus:
 # [object_name, check_function, function parameter, weight, threshold]
-def check_objects(object_list):
+def validate_objects(validation_list):
 
     # first retrieve all required objects, create dataframes for them
 
-    for item in object_list:
-        if item[0] not in dataframes.keys():    # if we haven't already retrieved and processed this object
-            score,df = getObjectAsDF(item[0])
+    for item in validation_list:
+        if item[0] not in object_list.keys():    # if we haven't already retrieved and processed this object
+            score,df = retrieveObjectFromProvider(item[0])
             setattr(df,'objectname',item[0])
             if score == 1:
-                dataframes[item[0]]={}
-                dataframes[item[0]]['dataframe']=df
-                dataframes[item[0]]['quality'] = 0
-                dataframes[item[0]]['n_tests'] = 0
+                object_list[item[0]]={} # create the key and the dict
+                object_list[item[0]]['dataframe']=df
+                object_list[item[0]]['quality'] = 0
+                object_list[item[0]]['n_tests'] = 0
             if score == 0:
                 return 0            # each array is defined such that ALL files must exist
 
@@ -68,33 +69,32 @@ def check_objects(object_list):
     # if we have all required files, then for each entry in the list, we perform the requisite test
     # and for each individual file we keep track of the cumulative quality score for that file
     for item in x:
-        dataframes[item[0]]['n_tests']+=1
-        individual_test_score = item[1](dataframes[item[0]]['dataframe'], item[2])
+        object_list[item[0]]['n_tests']+=1
+        individual_test_score = item[1](item[0], item[2])
 
         individual_threshold = item[4]
         individual_weight = item[3]
         if (individual_test_score < individual_threshold):
             logger.info("Threshold failure: {} {}({}) scored {}, expecting at least {}".format(
                 item[0],item[1].__name__,item[2],individual_test_score,individual_threshold))
-        dataframes[item[0]]['quality'] += (individual_weight * individual_test_score)
-
-
+        object_list[item[0]]['quality'] += (individual_weight * individual_test_score)
 
     average_quality = 0
-    for i in dataframes.keys():
-        dataframes[i]['quality'] /= dataframes[i]['n_tests']
-        set_quality_score(i,dataframes[i]['quality'])
-        average_quality += dataframes[i]['quality']
-        logger.info("{}: quality: {}, n_tests: {}".format(i, dataframes[i]['quality'], dataframes[i]['n_tests']))
-    average_quality /= len(dataframes)
+    for i in object_list.keys():
+        object_list[i]['quality'] /= object_list[i]['n_tests']
+        set_quality_score(i, object_list[i]['quality'])
+        average_quality += object_list[i]['quality']
+        logger.info("{}: quality: {}, n_tests: {}".format(i, object_list[i]['quality'], object_list[i]['n_tests']))
+    average_quality /= len(object_list)
 
-    return average_quality, dataframes
+    return average_quality, object_list
 
 # get the % of columns expected; if you get too many columns, it still returns a % showing your overage, upto a maximum
 # if you have double or more the number of colums desired, the returned score is 0
 #
 # param: expected_n - the number of expected columns
-def score_column_count(dataframe, p):
+def score_column_count(object_name, p):
+    dataframe = get_dataframe(object_name)
     score=len(dataframe.columns)/p['expected_n']
     if score <= 1:
         return score
@@ -109,7 +109,8 @@ def score_column_count(dataframe, p):
 # is a mandatory column complete?
 #
 # param: column name to check
-def score_no_blanks(df, p):
+def score_no_blanks(object_name, p):
+    df=get_dataframe(object_name)
     if p['column'] in df.columns[df.isna().any()].tolist():
         return 0
     else:
@@ -118,7 +119,8 @@ def score_no_blanks(df, p):
 # are the column names as expected?
 #
 # param: columns - a list of expected columns
-def score_column_names(df, p):
+def score_column_names(object_name, p):
+    df=get_dataframe(object_name)
     if (df.columns.to_list() == p['columns']):
         return 1
     else:
@@ -128,7 +130,8 @@ def score_column_names(df, p):
 # that are present in that master set. useful check of referential integrity and consistency across files
 #
 # params: column, master, master_column
-def score_column_valid_values(df,p):
+def score_column_valid_values(object_name,p):
+    df=get_dataframe(object_name)
 
     master = get_dataframe(p['master'])
     s=df[p['column']].to_list()
@@ -148,7 +151,8 @@ def score_column_valid_values(df,p):
 # at least once in our primary dataframe. returns the percentage of the master list that is indeed used in the primary dataframe
 #
 # params: column, master, master_column
-def score_every_master_value_used(df,p):
+def score_every_master_value_used(object_name,p):
+    df=get_dataframe(object_name)
     master = get_dataframe(p['master'])
     s=df[p['column']].to_list()
 
@@ -159,7 +163,7 @@ def score_every_master_value_used(df,p):
         if i in s:
             m.remove(i)
 
-    original
+
     score = (original_count-len(m))/original_count
 
     return score
@@ -167,7 +171,8 @@ def score_every_master_value_used(df,p):
 # does a column contain only unique values
 #
 # param: column - the column to check
-def score_unique_column(df, p):
+def score_unique_column(object_name, p):
+    df=get_dataframe(object_name)
     values = df[p['column']].to_list()
     values_set = set(values)
     if len(values) == len(values_set):
@@ -179,17 +184,18 @@ def score_unique_column(df, p):
 
 print('----------------')
 x=[
-    ['ExampleCSV.csv',score_column_count,{"expected_n":8},1,1],\
-    ['ExampleCSV.csv',score_column_names,{'columns':['Column 1', 'Second Column', 'Column 3', 'Optional Column 1','Optional Column2', 'GroupByColumn',\
-        'Integer Column', 'Float Column']},1,1],\
-    ['ExampleCSV.csv',score_no_blanks,{'column':'Second Column'},1,1],\
-    ['groups.csv',score_column_count,{"expected_n":1},1,1],\
-    ['ExampleCSV.csv',score_column_valid_values,{'column':'GroupByColumn', 'master':'groups.csv', 'master_column':'groups'},1,1],
+    ['ExampleCSV.csv',score_column_count,{"expected_n":8},1,1],
+    ['ExampleCSV.csv',score_column_names,{'columns':['Column 1', 'Second Column', 'Column 3', 'Optional Column 1',
+                                            'Optional Column2', 'GroupByColumn','Integer Column', 'Float Column']},1,1],
+    ['ExampleCSV.csv',score_no_blanks,{'column':'Second Column'},1,1],
+    ['groups.csv',score_column_count,{"expected_n":1},1,1],
+    ['ExampleCSV.csv',score_column_valid_values,{'column':'GroupByColumn', 'master':'groups.csv',
+                                                    'master_column':'groups'},1,1],
     ['ExampleCSV.csv', score_unique_column, {'column': 'GroupByColumn'}, 1, 1],
     ['groups.csv',score_unique_column,{'column':'groups'},1,1]
 
 ]
 
 
-q = check_objects(x)
+q = validate_objects(x)
 logger.info('Total average quality measure: {}'.format(q[0]))
