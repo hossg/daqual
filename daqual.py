@@ -1,5 +1,6 @@
 import pandas as pd
-
+import numpy as np
+import re
 # setup logging config
 import logging
 logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s',level=logging.INFO)
@@ -180,19 +181,72 @@ def score_unique_column(object_name, p):
     else:
         return 0
 
+# get the % of rows expected; if you get too many columns, it still returns a % showing your overage, upto a maximum
+# if you have double or more the number of rows desired, the returned score is 0
+#
+# param: expected_row_count - the number of expected rows
+def score_row_count(object_name,p):
+    df=get_dataframe(object_name)
+    row_count = len(df.index)
+    score = row_count/p['expected_row_count']
 
+    if score <= 1:
+        return score
+    if (score > 2):
+        score = 0
+    elif (score > 1):
+        score = 2 - score
+
+# score a column for its match against a regular expression, returnint the % of rows that match the regex
+#
+# param: match - the regex to use, column - the column to match
+def score_match(object_name, p):
+    df = get_dataframe(object_name)
+    r = p['match']
+    pattern = re.compile(r)
+    score=0
+    for i in df[p['column']]:
+        if pattern.match(i):
+            score+=1
+
+    score = score/len(df[p['column']])
+    return score
+
+def score_int(objectname, p):
+    dt = get_dataframe(objectname)[p['column']].dtype
+    if dt == np.dtype('int64'):
+        return 1
+    else:
+        return 0
+
+def score_float(objectname, p):
+    dt = get_dataframe(objectname)[p['column']].dtype
+    if dt == np.dtype('float64'):
+        return 1
+    else:
+        return 0
+
+def score_number(objectname, p):
+    if score_float(objectname,p):
+        return 1
+    else:
+        return score_int(objectname,p)
 
 print('----------------')
 x=[
     ['ExampleCSV.csv',score_column_count,{"expected_n":8},1,1],
+    ['ExampleCSV.csv',score_row_count,{"expected_row_count":5},1,1],
     ['ExampleCSV.csv',score_column_names,{'columns':['Column 1', 'Second Column', 'Column 3', 'Optional Column 1',
                                             'Optional Column2', 'GroupByColumn','Integer Column', 'Float Column']},1,1],
     ['ExampleCSV.csv',score_no_blanks,{'column':'Second Column'},1,1],
+    ['ExampleCSV.csv',score_float,{'column':'Float Column'},1,1],
     ['groups.csv',score_column_count,{"expected_n":1},1,1],
     ['ExampleCSV.csv',score_column_valid_values,{'column':'GroupByColumn', 'master':'groups.csv',
                                                     'master_column':'groups'},1,1],
     ['ExampleCSV.csv', score_unique_column, {'column': 'GroupByColumn'}, 1, 1],
-    ['groups.csv',score_unique_column,{'column':'groups'},1,1]
+    ['groups.csv',score_unique_column,{'column':'groups'},1,1],
+    ['groups.csv',score_row_count,{'expected_row_count':3},1,1],
+    ['groups.csv',score_match,{'column':'groups', 'match':'Group\d'},1,1],
 
 ]
 

@@ -46,6 +46,33 @@ b.	Is the file what was expected... Value Date, contents?
 
 6.	Max or min value in a column
 
+## Table of Implemented/Proposed Quality Checks
+
+Description                                         | Function Name                 | Parameters
+-----------                                         | -------------                 | ----------
+Expected number of columns                          | score_column_count            |
+Expected column names                               | score_column_names            |
+Are blanks allowed in a column?                     | score_no_blanks               |
+Is a column constrained to a fixed set of values?   | score_column_valid_values     |
+Is every single value from a master table used?     | score_every_master_value_used |
+Are all the values in a column unique?              | score_unique_column           |
+Column meets a regex                                | score_match                   |
+Column is an integer                                | score_int                     |
+Column is a date                                    |                               |
+Column is a float                                   | score_float                   |
+Column is a number                                  | score_number                  |
+Expected sum of a column (including group-by)       |                               |
+Expected mean of a column (including group-by)      |                               |
+Row count                                           | expected_row_count            |
+Max of a column (including group-by)                |
+Min of a column (including group-by)                |
+Compare to another version of a file                |
+Are all values greater than?                        |
+Are all values less than?                           |
+
+
+
+
 ## Actions and processes
 
 We will also need to come to the question of what to do when a DQ check fails (i.e. has a DQ score of <1 and/or <threshold-defined-for-that-file). Again, I think we should have some standard templates for how to handle this:
