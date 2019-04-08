@@ -29,11 +29,13 @@ def retrieveObjectFromProvider(objectkey):
 def update_object_tagging(objectkey, tag, value):
     tags = boto3.client('s3').get_object_tagging(Bucket=BUCKET_NAME,Key=objectkey)
     t = tags['TagSet']
-    for i in t:
-        if i['Key']==tag:
-            i['Value']=str(value)
-        else:
-            t.append({'Key': tag, 'Value': str(value)})
+    if len(t) >0:
+        for i in t:
+            if i['Key']==tag:
+                i['Value']=str(value)
+    else:
+        t.append({'Key': tag, 'Value': str(value)})
+
     ts = {'TagSet':t}
     boto3.client('s3').put_object_tagging(Bucket=BUCKET_NAME, Key=objectkey, Tagging=ts)
 
