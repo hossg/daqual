@@ -18,7 +18,7 @@ x=[
 
 ]
 
-
-q = daqual.validate_objects(x)
+d = daqual.Daqual()
+q = d.validate_objects(x)
 print(x)
 print('Total average quality measure: {}'.format(q[0]))
