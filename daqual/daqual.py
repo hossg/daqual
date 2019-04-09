@@ -73,7 +73,7 @@ class Daqual:
     def validate_objects(self,validation_list):
 
         # first retrieve all required objects, create dataframes for them
-
+        # TODO - need to rename the various item[] references to make the code more intelligible
         for item in validation_list:
             if item[0] not in self.object_list.keys():    # if we haven't already retrieved and processed this object
                 score,df = self.retrieveObjectFromProvider(item[0])
@@ -83,6 +83,7 @@ class Daqual:
                     self.object_list[item[0]]['dataframe']=df
                     self.object_list[item[0]]['quality'] = 0
                     self.object_list[item[0]]['n_tests'] = 0
+                    self.object_list[item[0]]['total_weighting'] = 0
                 if score == 0:
                     return 0            # each array is defined such that ALL files must exist
 
@@ -90,7 +91,12 @@ class Daqual:
         # if we have all required files, then for each entry in the list, we perform the requisite test
         # and for each individual file we keep track of the cumulative quality score for that file
         for item in validation_list:
-            self.object_list[item[0]]['n_tests']+=1
+
+            individual_threshold = item[4]
+            individual_weight = item[3]
+            self.object_list[item[0]]['n_tests'] += 1
+            self.object_list[item[0]]['total_weighting'] += individual_weight
+
             individual_test_score = item[1](self,item[0], item[2])
             logger.info('Validating {} with test {}({}) - Quality Score = {}'.format(item[0], item[1].__name__,
                                                                                      item[2], individual_test_score))
@@ -105,7 +111,7 @@ class Daqual:
 
         average_quality = 0
         for i in self.object_list.keys():
-            self.object_list[i]['quality'] /= self.object_list[i]['n_tests'] # TODO - need to divide by the weighting too?
+            self.object_list[i]['quality'] /= self.object_list[i]['total_weighting']
             self.set_quality_score(i, self.object_list[i]['quality'])
             average_quality += self.object_list[i]['quality']
             logger.info("Object summary for {} - quality: {}, n_tests: {}".format(i, self.object_list[i]['quality'], self.object_list[i]['n_tests']))
