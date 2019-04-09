@@ -32,6 +32,7 @@ class Daqual:
 
     # retrieve objects from S3 and return a pandas DataFrame
     def retrieveObjectFromProvider(self,objectkey):
+        # TODO - switch from using /temp to perhaps /temp and then a unique-per-instance identifier
         tempfilename='./temp/' + objectkey
         try:
             s3.Bucket(BUCKET_NAME).download_file(objectkey, tempfilename)
@@ -39,8 +40,8 @@ class Daqual:
             logger.error("Could not retrieve object {}".format(objectkey))
             return(0, None)
         df = pd.read_csv(tempfilename)
-        # noTODO - tidy up/remove tempfile; actually no - because we may want to use the actual file objects directly
-        # instead of only accessing via dataframes
+        # TODO - tidy up/remove tempfile when the instance is destroyed
+
         logger.info("Retrieved and converted object {}".format(objectkey))
         return (1,df)
 
@@ -91,23 +92,26 @@ class Daqual:
         for item in validation_list:
             self.object_list[item[0]]['n_tests']+=1
             individual_test_score = item[1](self,item[0], item[2])
+            logger.info('Validating {} with test {}({}) - Quality Score = {}'.format(item[0], item[1].__name__,
+                                                                                     item[2], individual_test_score))
 
             individual_threshold = item[4]
             individual_weight = item[3]
             if (individual_test_score < individual_threshold):
-                logger.info("Threshold failure: {} {}({}) scored {}, expecting at least {}".format(
+                logger.warn("Threshold failure: {} {}({}) scored {}, expecting at least {}".format(
                     item[0],item[1].__name__,item[2],individual_test_score,individual_threshold))
+                # TODO - need to actually fail the validation if a threshold is failed
             self.object_list[item[0]]['quality'] += (individual_weight * individual_test_score)
 
         average_quality = 0
         for i in self.object_list.keys():
-            self.object_list[i]['quality'] /= self.object_list[i]['n_tests']
+            self.object_list[i]['quality'] /= self.object_list[i]['n_tests'] # TODO - need to divide by the weighting too?
             self.set_quality_score(i, self.object_list[i]['quality'])
             average_quality += self.object_list[i]['quality']
-            logger.info("{}: quality: {}, n_tests: {}".format(i, self.object_list[i]['quality'], self.object_list[i]['n_tests']))
+            logger.info("Object summary for {} - quality: {}, n_tests: {}".format(i, self.object_list[i]['quality'], self.object_list[i]['n_tests']))
         average_quality /= len(self.object_list)
 
-        return average_quality, self.object_list
+        return average_quality, self.object_list # return also the actual list of dataframes, files, etc. Necessary?
 
     # get the % of columns expected; if you get too many columns, it still returns a % showing your overage, upto a maximum
     # if you have double or more the number of colums desired, the returned score is 0
