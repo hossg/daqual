@@ -71,7 +71,7 @@ def validate_objects(validation_list):
 
     # if we have all required files, then for each entry in the list, we perform the requisite test
     # and for each individual file we keep track of the cumulative quality score for that file
-    for item in x:
+    for item in validation_list:
         object_list[item[0]]['n_tests']+=1
         individual_test_score = item[1](item[0], item[2])
 
@@ -234,24 +234,24 @@ def score_number(objectname, p):
     else:
         return score_int(objectname,p)
 
-print('----------------')
-x=[
-    ['ExampleCSV.csv',score_column_count,{"expected_n":8},1,1],
-    ['ExampleCSV.csv',score_row_count,{"expected_row_count":5},1,1],
-    ['ExampleCSV.csv',score_column_names,{'columns':['Column 1', 'Second Column', 'Column 3', 'Optional Column 1',
-                                            'Optional Column2', 'GroupByColumn','Integer Column', 'Float Column']},1,1],
-    ['ExampleCSV.csv',score_no_blanks,{'column':'Second Column'},1,1],
-    ['ExampleCSV.csv',score_float,{'column':'Float Column'},1,1],
-    ['groups.csv',score_column_count,{"expected_n":1},1,1],
-    ['ExampleCSV.csv',score_column_valid_values,{'column':'GroupByColumn', 'master':'groups.csv',
-                                                    'master_column':'groups'},1,1],
-    ['ExampleCSV.csv', score_unique_column, {'column': 'GroupByColumn'}, 1, 1],
-    ['groups.csv',score_unique_column,{'column':'groups'},1,1],
-    ['groups.csv',score_row_count,{'expected_row_count':3},1,1],
-    ['groups.csv',score_match,{'column':'groups', 'match':'Group\d'},1,1],
+# print('----------------')
+# x=[
+#     ['ExampleCSV.csv',score_column_count,{"expected_n":8},1,1],
+#     ['ExampleCSV.csv',score_row_count,{"expected_row_count":5},1,1],
+#     ['ExampleCSV.csv',score_column_names,{'columns':['Column 1', 'Second Column', 'Column 3', 'Optional Column 1',
+#                                             'Optional Column2', 'GroupByColumn','Integer Column', 'Float Column']},1,1],
+#     ['ExampleCSV.csv',score_no_blanks,{'column':'Second Column'},1,1],
+#     ['ExampleCSV.csv',score_float,{'column':'Float Column'},1,1],
+#     ['groups.csv',score_column_count,{"expected_n":1},1,1],
+#     ['ExampleCSV.csv',score_column_valid_values,{'column':'GroupByColumn', 'master':'groups.csv',
+#                                                     'master_column':'groups'},1,1],
+#     ['ExampleCSV.csv', score_unique_column, {'column': 'GroupByColumn'}, 1, 1],
+#     ['groups.csv',score_unique_column,{'column':'groups'},1,1],
+#     ['groups.csv',score_row_count,{'expected_row_count':3},1,1],
+#     ['groups.csv',score_match,{'column':'groups', 'match':'Group\d'},1,1],
+#
+# ]
 
-]
 
-
-q = validate_objects(x)
-logger.info('Total average quality measure: {}'.format(q[0]))
+# q = validate_objects(x)
+# logger.info('Total average quality measure: {}'.format(q[0]))
