@@ -86,7 +86,7 @@ class Daqual:
 
     def set_quality_score(self,objectkey, quality):
         logger.info("Setting quality_score on {} to {}".format(objectkey,quality))
-        self.update_object_tagging(objectkey,'quality_score', quality)
+        self.provider['tag'](objectkey,'quality_score', quality)
 
 
 
@@ -241,9 +241,17 @@ class Daqual:
     #
     # param: expected_row_count - the number of expected rows
     def score_row_count(self,object_name,p):
-        df=self.get_dataframe(object_name)
+
+        df = self.get_dataframe(object_name)
         row_count = len(df.index)
-        score = row_count/p['expected_row_count']
+        comparison = p.get('comparison')
+        if comparison != None:
+            comparison_df = self.get_dataframe(comparison)
+            comparison_row_count = len(comparison_df.index)
+            expected_row_count = comparison_row_count - p.get('expected_delta')
+            score = row_count / expected_row_count
+        else:
+            score = row_count/p['expected_row_count']
 
         if score <= 1:
             return score
@@ -251,6 +259,12 @@ class Daqual:
             score = 0
         elif (score > 1):
             score = 2 - score
+        return score
+
+
+
+
+
 
     # score a column for its match against a regular expression, returnint the % of rows that match the regex
     #
@@ -287,9 +301,12 @@ class Daqual:
         else:
             return self.score_int(objectname,p)
 
+    def nothing(x,y,z):
+        return None
+
     file_system_provider = {
         'retrieve': retrieve_object_from_filesystem,
-        'tag': lambda: None                             # filesystem provider doesn't currently support tagging
+        'tag': nothing    # filesystem provider doesn't currently support tagging
     }
 
     aws_provider = {

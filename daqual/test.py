@@ -15,6 +15,8 @@ x=[
     ['daqual/groups.csv',daqual.score_unique_column,{'column':'groups'},1,1],
     ['daqual/groups.csv',daqual.score_row_count,{'expected_row_count':3},1,1],
     ['daqual/groups.csv',daqual.score_match,{'column':'groups', 'match':'Group\d'},1,1],
+    ['daqual/ExampleCSV-2.csv',daqual.score_column_count,{"expected_n":8},1,1],
+    ['daqual/ExampleCSV.csv',daqual.score_row_count,{"comparison":'daqual/ExampleCSV-2.csv', 'expected_delta':1},1,1],
 
 ]
 
