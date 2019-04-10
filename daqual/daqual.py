@@ -4,6 +4,12 @@ import re
 import logging
 import boto3
 import botocore
+import shutil
+import pathlib
+
+file_system_provider_root = '../examples/'
+temp_folder = './temp/'
+
 logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -11,8 +17,6 @@ BUCKET_NAME = 'daqual'  # replace with your bucket name
 s3 = boto3.resource('s3')
 
 class Daqual:
-
-    # global get_dataframe
 
     global score_row_count
     global score_column_names
@@ -27,15 +31,34 @@ class Daqual:
     global score_column_count
 
 
-    def __init__(self):
+    def __init__(self, provider):
         self.object_list = {}
+        self.provider=provider
+
+
+    def retrieve_object_from_filesystem(objectkey):
+
+        bucket, file_objectkey = objectkey.split('/',1)
+        pathlib.Path(temp_folder+bucket).mkdir(parents=True, exist_ok=True)
+        tempfilename=temp_folder + file_objectkey
+
+        filename = file_system_provider_root + objectkey
+        shutil.copyfile(filename,tempfilename)
+        df = pd.read_csv(tempfilename)
+        # TODO - tidy up/remove tempfile when the instance is destroyed
+
+        logger.info("Retrieved and converted object {}".format(filename))
+        return (1,df)
+
 
     # retrieve objects from S3 and return a pandas DataFrame
-    def retrieveObjectFromProvider(self,objectkey):
+    def retrieve_object_from_S3(objectkey):
         # TODO - switch from using /temp to perhaps /temp and then a unique-per-instance identifier
-        tempfilename='./temp/' + objectkey
+        bucket, s3_objectkey = objectkey.split('/',1)
+        pathlib.Path(temp_folder+bucket).mkdir(parents=True, exist_ok=True)
+        tempfilename=temp_folder + objectkey
         try:
-            s3.Bucket(BUCKET_NAME).download_file(objectkey, tempfilename)
+            s3.Bucket(bucket).download_file(s3_objectkey, tempfilename)
         except botocore.exceptions.ClientError as e:
             logger.error("Could not retrieve object {}".format(objectkey))
             return(0, None)
@@ -46,7 +69,9 @@ class Daqual:
         return (1,df)
 
     def update_object_tagging(self,objectkey, tag, value):
-        tags = boto3.client('s3').get_object_tagging(Bucket=BUCKET_NAME,Key=objectkey)
+
+        bucket, s3_objectkey = objectkey.split('/', 1)
+        tags = boto3.client('s3').get_object_tagging(Bucket=bucket,Key=s3_objectkey)
         t = tags['TagSet']
         if len(t) >0:
             for i in t:
@@ -56,7 +81,7 @@ class Daqual:
             t.append({'Key': tag, 'Value': str(value)})
 
         ts = {'TagSet':t}
-        boto3.client('s3').put_object_tagging(Bucket=BUCKET_NAME, Key=objectkey, Tagging=ts)
+        boto3.client('s3').put_object_tagging(Bucket=bucket, Key=s3_objectkey, Tagging=ts)
 
 
     def set_quality_score(self,objectkey, quality):
@@ -76,7 +101,8 @@ class Daqual:
         # TODO - need to rename the various item[] references to make the code more intelligible
         for item in validation_list:
             if item[0] not in self.object_list.keys():    # if we haven't already retrieved and processed this object
-                score,df = self.retrieveObjectFromProvider(item[0])
+                #score,df = self.retrieve_object_from_S3(item[0])
+                score, df = self.provider['retrieve'](item[0])
                 setattr(df,'objectname',item[0])
                 if score == 1:
                     self.object_list[item[0]]={} # create the key and the dict
@@ -134,7 +160,7 @@ class Daqual:
             score = 2 - score
 
         logger.warn("Object {} has {} columns, expecting only {}".format(dataframe.objectname,len(dataframe.columns),p['expected_n']))
-
+        return score
 
     # is a mandatory column complete?
     #
@@ -260,6 +286,16 @@ class Daqual:
             return 1
         else:
             return self.score_int(objectname,p)
+
+    file_system_provider = {
+        'retrieve': retrieve_object_from_filesystem,
+        'tag': lambda: None                             # filesystem provider doesn't currently support tagging
+    }
+
+    aws_provider = {
+        'retrieve': retrieve_object_from_S3,
+        'tag': update_object_tagging
+    }
 
     # print('----------------')
     # x=[
