@@ -48,30 +48,41 @@ b.	Is the file what was expected... Value Date, contents?
 
 ## Table of Implemented/Proposed Quality Checks
 
-Description                                         | Function Name                 | Parameters
------------                                         | -------------                 | ----------
-Expected number of columns                          | score_column_count            |
-Expected column names                               | score_column_names            |
-Are blanks allowed in a column?                     | score_no_blanks               |
-Is a column constrained to a fixed set of values?   | score_column_valid_values     |
-Is every single value from a master table used?     | score_every_master_value_used |
-Are all the values in a column unique?              | score_unique_column           |
-Column meets a regex                                | score_match                   |
-Column is an integer                                | score_int                     |
+Description                                         | Function Name                 | Parameters                    | Notes             
+-----------                                         | -------------                 | ----------                    | -----             
+Expected number of columns                          | score_column_count            | column, expected_n            |
+Expected column names                               | score_column_names            | columns                       | returns either 0 or 1
+Are blanks allowed in a column?                     | score_no_blanks               | column                        | returns either 0 or 1
+Is a column constrained to a fixed set of values?   | score_column_valid_values     | column, master, master_column | returns % of values that are present in master list
+Is every single value from a master table used?     | score_every_master_value_used | column, master, master_column | returns % of values that are used from a master list
+Are all the values in a column unique?              | score_unique_column           | column                        | returns either 0 or 1
+Column matches a regex                              | score_match                   | match, column                 |
+Column is an integer                                | score_int                     | column                        | returns either 0 or 1; ignores NaN
 Column is a date                                    |                               |
-Column is a float                                   | score_float                   |
-Column is a number                                  | score_number                  |
+Column is a float                                   | score_float                   | column                        | returns either 0 or 1; ignores NaN
+Column is a number                                  | score_number                  | column                        | returns either 0 or 1; ignores NaN
 Expected sum of a column (including group-by)       |                               |
 Expected mean of a column (including group-by)      |                               |
-Row count                                           | expected_row_count            |
+Row count                                           | expected_row_count            | expected_row_count or comparison, expected_delta
 Max of a column (including group-by)                |
 Min of a column (including group-by)                |
 Compare to another version of a file                |
 Are all values greater than?                        |
 Are all values less than?                           |
 
+*Note: parameters are supplied in a *dict**
 
+See source code for detailed explanation of how to use each scoring function
 
+Definitions/explanations of common parameters:
+* column
+* master
+* master_column
+* comparison 
+* expected
+* expected_row_count
+* expected_n
+* match
 
 ## Actions and processes
 

@@ -349,6 +349,7 @@ class Daqual:
         else:
             return self.score_int(objectname,p)
 
+    # convenience function to allow "no function" for providers (e.g. see file_system_provider below)
     def nothing(x,y,z):
         return None
 
