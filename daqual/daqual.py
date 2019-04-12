@@ -34,6 +34,7 @@ class Daqual:
     global score_int
     global score_match
     global score_column_count
+    global score_comparison
 
 
     # when creating a Daqual object we supply a "provider definition" to map provider-specific functions to generic
@@ -78,6 +79,12 @@ class Daqual:
         logger.info("Retrieved and converted object {}".format(objectkey))
         return (1,df)
 
+    # TODO - need to consider if an object is quality-checked more than once, need to prevent its score being overwritten
+    # consider whether to record the instance that did the tagging, and perhaps a fingerprint of the QC definition.
+    # do we want to record multiple quality measures for an object?  probably not, so does "first win", or "last win".
+    # I think "last" is the easiest to understand.
+    # Alternatively we could simply "error", or return a pre-existing QC value/tag, or provide optionality re: the
+    # approach
 
     # set object metadata in S3
     def update_object_tagging_S3(self,objectkey, tag, value):
@@ -348,6 +355,59 @@ class Daqual:
             return 1
         else:
             return self.score_int(objectname,p)
+
+
+    # TODO - need to arrange for ordering/sorting (generally) with DF's
+
+    # need to think what behaviour we want when one DF has more rows than the other (or vice versa)
+    # presumably this could/should be handled independently via the score_rows() capability
+    # in which we should simply ignore any results from "new rows", and score based upon the
+    # rows of interest, remembering that the user could call function in either "direction"
+    # from the validation process according to how the validation is defined - i.e. we don't need to
+    # cater for both "directions" or overspills in this function
+    #
+    # The typical use-case would be comparing one version of a file to an older version, and testing
+    # values within an acceptable range, for all pre-existing rows/data. In other words, we generally want to
+    # look at situations where we add blank rows to the old file, and expect the new file to (potentially) have
+    # more/new data.
+    #
+    def score_comparison(self, objectname,p):
+        df = self.get_dataframe(objectname).copy()
+        comparison = self.get_dataframe(p['comparison']).copy()
+
+        # make sure the two datasets have the same number of rows for a trivial comparison
+        missing_rows = len(comparison)-len(df)
+        if missing_rows > 0:
+            for i in range(missing_rows):
+                df = df.append(pd.Series(),ignore_index=True)   # could do in-place,but would mess up the original DF
+        elif missing_rows < 0:
+            for i in range(abs(missing_rows)):
+                comparison = comparison.append(pd.Series(),ignore_index=True)
+
+        # TODO - need to introduce equality option i.e. (>= not just >) capability
+        comparison_series = comparison[p['column']]-p['delta']
+        df_series = df[p['column']]
+        print(comparison_series)
+        print(df_series)
+        difference={}
+        c=p['comparator']
+        if c=='>':
+            difference = comparison_series > df_series
+        elif c == '>=':
+            difference = comparison_series >= df_series
+        elif c == '=':
+            difference = comparison_series.equals(df_series) # TODO - fix equality testing to give a boolean SERIES
+        elif c == '<=':
+            difference = comparison_series <= df_series
+        elif c == '<':
+            difference = comparison_series < df_series
+        print(difference)
+        difference_count = difference.sum()  # count the Trues; all blank rows added to allow comparison only have False
+                                             # as a result of a comparison in any case
+        quality = difference_count/len(comparison)  # TODO - need the original comparison length actually
+
+        return quality
+
 
     # convenience function to allow "no function" for providers (e.g. see file_system_provider below)
     def nothing(x,y,z):

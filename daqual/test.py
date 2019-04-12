@@ -17,7 +17,8 @@ x=[
     ['daqual/groups.csv',daqual.score_match,{'column':'groups', 'match':'Group\d'},1,1],
     ['daqual/ExampleCSV-2.csv',daqual.score_column_count,{"expected_n":8},1,1],
     ['daqual/ExampleCSV.csv',daqual.score_row_count,{"comparison":'daqual/ExampleCSV-2.csv', 'expected_delta':1},1,1],
-
+    ['daqual/ExampleCSV.csv',daqual.score_comparison,{"comparison":'daqual/ExampleCSV-2.csv',
+                                                        'delta':0, 'comparator':'<=','column':"Float Column"},1,1],
 ]
 
 #d = daqual.Daqual(daqual.Daqual.aws_provider)
