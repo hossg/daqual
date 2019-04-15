@@ -108,10 +108,12 @@ class Daqual:
     def get_dataframe(self,object_name):
         return self.object_list[object_name]['dataframe']
 
-    # TODO - retrieve a file (or a filename) (rather than an object/dataframe)
     # this may be useful for use-cases where we want to play withe the raw files
-    def get_file(self,object_name):
-        return None
+    def get_file(self,objectkey):
+        unique_temp_folder = temp_folder + self.uuid + '/'
+        tempfilename = unique_temp_folder + objectkey
+        return tempfilename
+
 
 
     # The primary function of Daqual - to iterate over a list of tests, to run a test against an object and to record
@@ -186,12 +188,12 @@ class Daqual:
             logger.info("Object summary for {} - quality: {}, n_tests: {}".format(i, self.object_list[i]['quality'], self.object_list[i]['n_tests']))
         average_quality /= len(self.object_list)
 
-        # TODO - need to actually fail the validation if a threshold is failed
-        # probably just uncomment these lines and return the "overall" quality test/measure as being zero
-        # if failed_an_individual_test==True:
-        #    average_quality=0
+        # Need to actually fail the validation if a threshold is failed
+        # Return the "overall" quality test/measure as being zero to indicate a test somewhere failed to meet its threshold
+        if failed_an_individual_test==True:
+           average_quality=0
 
-        return average_quality, self.object_list # return also the actual list of dataframes, files, etc. Necessary?
+        return (average_quality, self.object_list) # return also the actual list of dataframes, files, etc. Necessary?
 
 
     # get the % of columns expected; if you get too many columns, it still returns a % showing your overage, upto a maximum

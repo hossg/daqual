@@ -29,6 +29,7 @@ x=[
 
 #d = daqual.Daqual(daqual.Daqual.aws_provider)
 d = daqual.Daqual(daqual.Daqual.file_system_provider)
-q = d.validate_objects(x)
-# print(x)
-logger.info('*** Total average quality measure: {} ***'.format(q[0]))
+q, vlist = d.validate_objects(x)
+
+logger.info('*** Total average quality measure: {} ***'.format(q))
+#logger.info('*** Validation list: {} ***'.format(vlist))
