@@ -7,8 +7,6 @@ import botocore
 import shutil
 import pathlib
 
-# TODO - should file_system_provider_root into the provider definition I think
-file_system_provider_root = '../examples/'
 temp_folder = './temp/'
 
 logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s', level=logging.INFO)
@@ -42,12 +40,12 @@ class Daqual:
 
     # retrieve objects from the filesystem and return a pandas DataFrame
     # intended primarily for easy/local development
-    def retrieve_object_from_filesystem(objectkey):
+    def retrieve_object_from_filesystem(objectkey, provider):
         bucket, file_objectkey = objectkey.split('/',1)
         pathlib.Path(temp_folder+bucket).mkdir(parents=True, exist_ok=True)
         tempfilename=temp_folder + file_objectkey
 
-        filename = file_system_provider_root + objectkey
+        filename = provider['file_system_provider_root'] + objectkey
         shutil.copyfile(filename,tempfilename)
         df = pd.read_csv(tempfilename)
         # TODO - tidy up/remove tempfile when the instance is destroyed
@@ -57,7 +55,7 @@ class Daqual:
 
 
     # retrieve objects from S3 and return a pandas DataFrame
-    def retrieve_object_from_S3(objectkey):
+    def retrieve_object_from_S3(objectkey, provider):
         # TODO - switch from using /temp to perhaps /temp and then a unique-per-instance identifier
         bucket, s3_objectkey = objectkey.split('/',1)
         pathlib.Path(temp_folder+bucket).mkdir(parents=True, exist_ok=True)
@@ -128,7 +126,7 @@ class Daqual:
         for item in validation_list:
             object_key = item[0]
             if object_key not in self.object_list.keys():    # if we haven't already retrieved and processed this object
-                score, df = self.provider['retrieve'](object_key)
+                score, df = self.provider['retrieve'](object_key, self.provider)
                 setattr(df,'objectname',object_key) # a convenience such that we can always go in the reverse direction
                                                     # and retrieve the object key from the dataframe
                 if score == 1:
@@ -453,7 +451,10 @@ class Daqual:
     # Define some function mappings for provider-specific behaviour
     file_system_provider = {
         'retrieve': retrieve_object_from_filesystem,
-        'tag': nothing    # filesystem provider doesn't currently support tagging
+        'tag': nothing,    # filesystem provider doesn't currently support tagging
+
+        # root of where to find files for this provider
+        "file_system_provider_root":'../examples/'
     }
 
     aws_provider = {
