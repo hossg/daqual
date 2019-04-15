@@ -6,6 +6,7 @@ import boto3
 import botocore
 import shutil
 import pathlib
+import uuid
 
 temp_folder = './temp/'
 
@@ -36,37 +37,42 @@ class Daqual:
     def __init__(self, provider):
         self.object_list = {}
         self.provider=provider
+        self.uuid = uuid.uuid4().hex
 
+    def __del__(self):
+        unique_temp_folder = temp_folder + self.uuid
+        shutil.rmtree(unique_temp_folder,ignore_errors=True)
 
     # retrieve objects from the filesystem and return a pandas DataFrame
     # intended primarily for easy/local development
-    def retrieve_object_from_filesystem(objectkey, provider):
+    def retrieve_object_from_filesystem(self, objectkey):
         bucket, file_objectkey = objectkey.split('/',1)
-        pathlib.Path(temp_folder+bucket).mkdir(parents=True, exist_ok=True)
-        tempfilename=temp_folder + file_objectkey
 
-        filename = provider['file_system_provider_root'] + objectkey
+        unique_temp_folder = temp_folder + self.uuid + '/'
+        pathlib.Path(unique_temp_folder+bucket).mkdir(parents=True, exist_ok=True)
+        tempfilename=unique_temp_folder + objectkey
+
+        filename = self.provider['file_system_provider_root'] + objectkey
         shutil.copyfile(filename,tempfilename)
         df = pd.read_csv(tempfilename)
-        # TODO - tidy up/remove tempfile when the instance is destroyed
 
         logger.info("Retrieved and converted object {}".format(filename))
         return (1,df)
 
 
     # retrieve objects from S3 and return a pandas DataFrame
-    def retrieve_object_from_S3(objectkey, provider):
-        # TODO - switch from using /temp to perhaps /temp and then a unique-per-instance identifier
+    def retrieve_object_from_S3(self, objectkey):
+
         bucket, s3_objectkey = objectkey.split('/',1)
-        pathlib.Path(temp_folder+bucket).mkdir(parents=True, exist_ok=True)
-        tempfilename=temp_folder + objectkey
+        unique_temp_folder = temp_folder + self.uuid + '/'
+        pathlib.Path(unique_temp_folder+bucket).mkdir(parents=True, exist_ok=True)
+        tempfilename=unique_temp_folder + objectkey
         try:
             boto3.resource('s3').Bucket(bucket).download_file(s3_objectkey, tempfilename)
         except botocore.exceptions.ClientError as e:
             logger.error("Could not retrieve object {}".format(objectkey))
             return(0, None)
         df = pd.read_csv(tempfilename)
-        # TODO - tidy up/remove tempfile when the instance is destroyed
 
         logger.info("Retrieved and converted object {}".format(objectkey))
         return (1,df)
@@ -126,7 +132,7 @@ class Daqual:
         for item in validation_list:
             object_key = item[0]
             if object_key not in self.object_list.keys():    # if we haven't already retrieved and processed this object
-                score, df = self.provider['retrieve'](object_key, self.provider)
+                score, df = self.provider['retrieve'](self,object_key)
                 setattr(df,'objectname',object_key) # a convenience such that we can always go in the reverse direction
                                                     # and retrieve the object key from the dataframe
                 if score == 1:
