@@ -27,8 +27,8 @@ x=[
                                                         'delta':0, 'comparator':'<=','column':"Float Column"},1,1],
 ]
 
-#d = daqual.Daqual(daqual.Daqual.aws_provider)
-d = daqual.Daqual(daqual.Daqual.file_system_provider)
+d = daqual.Daqual(daqual.Daqual.aws_provider)
+#d = daqual.Daqual(daqual.Daqual.file_system_provider)
 q = d.validate_objects(x)
 # print(x)
 logger.info('*** Total average quality measure: {} ***'.format(q[0]))

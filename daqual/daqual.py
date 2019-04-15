@@ -14,11 +14,6 @@ temp_folder = './temp/'
 logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-
-# TODO - s3 resource should be defined in the provider definition, rather than polute the global namespace
-s3 = boto3.resource('s3')
-
 class Daqual:
 
     # make sure the default scoring function are easily visible outside the class
@@ -68,7 +63,7 @@ class Daqual:
         pathlib.Path(temp_folder+bucket).mkdir(parents=True, exist_ok=True)
         tempfilename=temp_folder + objectkey
         try:
-            s3.Bucket(bucket).download_file(s3_objectkey, tempfilename)
+            boto3.resource('s3').Bucket(bucket).download_file(s3_objectkey, tempfilename)
         except botocore.exceptions.ClientError as e:
             logger.error("Could not retrieve object {}".format(objectkey))
             return(0, None)
@@ -86,7 +81,7 @@ class Daqual:
     # approach
 
     # set object metadata in S3
-    def update_object_tagging_S3(self,objectkey, tag, value):
+    def update_object_tagging_S3(objectkey, tag, value):
         bucket, s3_objectkey = objectkey.split('/', 1)
         tags = boto3.client('s3').get_object_tagging(Bucket=bucket,Key=s3_objectkey)
         t = tags['TagSet']
