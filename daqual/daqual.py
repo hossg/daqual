@@ -14,8 +14,7 @@ temp_folder = './temp/'
 logging.basicConfig(format='%(asctime)s %(name)s %(levelname)s %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# TODO - think BUCKET NAME is no longer required (part of object name) but if not, should be moved to the S3 provider definition
-BUCKET_NAME = 'daqual'  # replace with your bucket name
+
 
 # TODO - s3 resource should be defined in the provider definition, rather than polute the global namespace
 s3 = boto3.resource('s3')
@@ -464,5 +463,8 @@ class Daqual:
 
     aws_provider = {
         'retrieve': retrieve_object_from_S3,
-        'tag': update_object_tagging_S3
+        'tag': update_object_tagging_S3,
+
+        # DEPRECATED - BUCKETNAME no longer required (part of object name)
+        'BUCKET_NAME': 'daqual'  # replace with your bucket name
     }
