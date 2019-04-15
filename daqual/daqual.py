@@ -304,7 +304,7 @@ class Daqual:
         if comparison != None:
             comparison_df = self.get_dataframe(comparison)
             comparison_row_count = len(comparison_df.index)
-            expected_row_count = comparison_row_count - p.get('expected_delta')
+            expected_row_count = comparison_row_count + p.get('expected_delta')
             score = row_count / expected_row_count
         else:
             score = row_count/p['expected_row_count']
@@ -375,39 +375,82 @@ class Daqual:
         df = self.get_dataframe(objectname).copy()
         comparison = self.get_dataframe(p['comparison']).copy()
 
+        # TODO - do we keep the natural ordering of the file/DF or do we (optionally?) force the ordering with a sort?
+        # TODO - need to add aggregation-based comparison (e.g. groupby sum and mean) capability
+
+
         # make sure the two datasets have the same number of rows for a trivial comparison
         missing_rows = len(comparison)-len(df)
         if missing_rows > 0:
+            logger.info("Primary object {} does not have enough rows; padding with {} rows".format(objectname, abs(
+                missing_rows)))
             for i in range(missing_rows):
                 df = df.append(pd.Series(),ignore_index=True)   # could do in-place,but would mess up the original DF
         elif missing_rows < 0:
+            logger.info("Comparison object {} does not have enough rows; padding with {} rows".format(p['comparison'],
+                                                                                                      abs(missing_rows)))
             for i in range(abs(missing_rows)):
                 comparison = comparison.append(pd.Series(),ignore_index=True)
 
-        # TODO - need to introduce equality option i.e. (>= not just >) capability
-        comparison_series = comparison[p['column']]-p['delta']
-        df_series = df[p['column']]
-        print(comparison_series)
-        print(df_series)
-        difference={}
-        c=p['comparator']
-        if c=='>':
-            difference = comparison_series > df_series
-        elif c == '>=':
-            difference = comparison_series >= df_series
-        elif c == '=':
-            difference = comparison_series.equals(df_series) # TODO - fix equality testing to give a boolean SERIES
-        elif c == '<=':
-            difference = comparison_series <= df_series
-        elif c == '<':
-            difference = comparison_series < df_series
-        print(difference)
+
+
+
+        # prepare an "adjusted series", with upper and lower bounds, to compare with our comparison series
+        adjusted_series = df.copy()
+        if p['delta']:
+            adjusted_series['daqual_upper_bound'] = adjusted_series[p['column']] + p['delta']
+            adjusted_series['daqual_lower_bound'] = adjusted_series[p['column']] - p['delta']
+        elif 'factor' in p:
+            upper_factor = 1+p['factor']
+            lower_factor = 1-p['factor']
+            adjusted_series['daqual_upper_bound'] = adjusted_series[p['column']] * upper_factor
+            adjusted_series['daqual_lower_bound'] = adjusted_series[p['column']] * lower_factor
+        else:
+            adjusted_series['daqual_upper_bound'] = adjusted_series[p['column']]
+            adjusted_series['daqual_lower_bound'] = adjusted_series[p['column']]
+
+
+        if p['comparator'] != 'between':
+            df_series = adjusted_series['daqual_upper_bound']
+            difference=self.compare(df_series,comparison[p['column']],p['comparator'])
+
+        else:
+            df_series = adjusted_series['daqual_lower_bound']
+            difference1 = self.compare(df_series, comparison[p['column']], '>=')
+
+            df_series = adjusted_series['daqual_upper_bound']
+            difference2 = self.compare(df_series, comparison[p['column']], '<=')
+
+            difference = difference1 & difference2
+
         difference_count = difference.sum()  # count the Trues; all blank rows added to allow comparison only have False
                                              # as a result of a comparison in any case
-        quality = difference_count/len(comparison)  # TODO - need the original comparison length actually
+
+        # Need to use the original comparison length actually, since we potentially added some blank rows
+        quality = difference_count/len(self.get_dataframe(p['comparison']))
 
         return quality
 
+    def compare(self, df_series,comparison, comparator):
+        # there really ought to be a way of doing this by simply passing the comparator function,
+        # but need to sort out method/function pointer syntax properly, so this will have to do
+        # for now
+        difference = {}
+
+        if comparator == '>':
+            difference = df_series.gt(comparison)
+        elif comparator == '>=':
+            difference = df_series.ge(comparison)
+        elif comparator == '=':
+            difference = df_series.eq(comparison)
+        elif comparator == '<=':
+            difference = df_series.le(comparison)
+        elif comparator == '<':
+            difference = df_series.lt(comparison)
+        elif comparator == '!=':
+            difference = df_series.ne(comparison)
+
+        return difference
 
     # convenience function to allow "no function" for providers (e.g. see file_system_provider below)
     def nothing(x,y,z):
