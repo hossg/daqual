@@ -83,18 +83,19 @@ logger.info('*** Balances: total average quality measure: {} ***'.format(quality
 quality, validation_results = a.validate_objects(transactions)
 logger.info('*** Transactions: total average quality measure: {} ***'.format(quality))
 
-def custom_transformer(validation_list,*args):
+def custom_transformer(validation_list,kwargs):
     output_list=[]
+
     for item in validation_list:
         output_jitems=[]
         for jitem in item:
             if type(jitem)==str:
-                replacement_jitem=jitem.format(*args)
+                replacement_jitem=jitem.format(**kwargs)
                 output_jitems.append(replacement_jitem)
             elif type(jitem)==dict:
                 for k in jitem.keys():
-                    if type(jitem.get(k))==str:
-                        jitem[k]=jitem.get(k).format(*args)
+                    if k !='match' and type(jitem.get(k))==str:
+                        jitem[k]=jitem.get(k).format(**kwargs)
                 output_jitems.append(jitem)
             else:
                 output_jitems.append(jitem)
@@ -111,24 +112,32 @@ transactions = [
     ['daqual/transactions-{0}.csv', daqual.score_date, {"column": "date"},1,1],
 ]
 
-business_date="20190304"
-iso_business_date='-'.join([business_date[0:4],business_date[4:6],business_date[6:8]])
 
 
-quality, validation_results = a.validate_objects(custom_transformer(transactions,business_date))
-logger.info('*** Transactions: total average quality measure: {} ***'.format(quality))
+
+# quality, validation_results = a.validate_objects(custom_transformer(transactions,business_date))
+# logger.info('*** Transactions: total average quality measure: {} ***'.format(quality))
 
 accounts = [
-    ['daqual/accounts-{1}.csv',daqual.score_1,{},1,1],                                             # basic validation of yesterday's file, since we will depend upon this later for comparison purposes
+    ['daqual/accounts-{previous_business_date}.csv',daqual.score_1,{},1,1],                                             # basic validation of yesterday's file, since we will depend upon this later for comparison purposes
 
-    ['daqual/accounts-{0}.csv',daqual.score_column_count,{"expected_n":2},1,1],                    # expecting 2 columns
-    ['daqual/accounts-{0}.csv',daqual.score_unique_column,{"column":"Account Number"},1,1],        # account number should be unique
-    ['daqual/accounts-{0}.csv',daqual.score_row_count,{"comparison":'daqual/accounts-{1}.csv',
+    ['daqual/accounts-{business_date}.csv',daqual.score_column_count,{"expected_n":2},1,1],                    # expecting 2 columns
+    ['daqual/accounts-{business_date}.csv',daqual.score_unique_column,{"column":"Account Number"},1,1],        # account number should be unique
+    ['daqual/accounts-{business_date}.csv',daqual.score_row_count,{"comparison":'daqual/accounts-{previous_business_date}.csv',
                                                             "expected_delta":">="},1,1] ,               # expecting at least as many rows as the previous day, since accounts can only be created
-    ['daqual/accounts-{0}.csv',daqual.score_match,{"column":"Account Number",
+    ['daqual/accounts-{business_date}.csv',daqual.score_match,{"column":"Account Number",
                                                         'match':'[a-zA-Z]-[\d]{3}'},1,1],               # account number should have the format letter-3-digits
-    ['daqual/accounts-{0}.csv',daqual.score_match,{"column":"Currency", 'match':'[A-Z]{3}'},1,1]   # currency should have the format 3 capital letters
+    ['daqual/accounts-{business_date}.csv',daqual.score_match,{"column":"Currency", 'match':'[A-Z]{3}'},1,1]   # currency should have the format 3 capital letters
 ]
 
-quality, validation_results = a.validate_objects(custom_transformer(transactions,business_date,daqual.Daqual.get_prev_date(iso_business_date,daqual.Daqual.custom_calendar)))
+business_date="20190304"
+iso_business_date='-'.join([business_date[0:4],business_date[4:6],business_date[6:8]])
+date_config={
+    "business_date": business_date,
+    "previous_business_date": daqual.Daqual.get_prev_date(iso_business_date,daqual.Daqual.custom_calendar,isoabbreviated=True)
+}
+
+
+print(date_config)
+quality, validation_results = a.validate_objects(custom_transformer(accounts,date_config))
 logger.info('*** Transactions: total average quality measure: {} ***'.format(quality))
