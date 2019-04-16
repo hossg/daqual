@@ -7,6 +7,11 @@ import botocore
 import shutil
 import pathlib
 import uuid
+from datetime import timedelta
+from datetime import date
+
+
+# TODO - sort out error-handling throughout
 
 temp_folder = './temp/'
 
@@ -28,6 +33,9 @@ class Daqual:
     global score_match
     global score_column_count
     global score_comparison
+    global score_date
+    global score_1
+
 
 
     # when creating a Daqual object we supply a "provider definition" to map provider-specific functions to generic
@@ -130,6 +138,7 @@ class Daqual:
     # test to be 1 for the "test set" to pass.
     def validate_objects(self,validation_list):
 
+        self.object_list={}
         # first retrieve all required objects, create dataframes for them
         for item in validation_list:
             object_key = item[0]
@@ -268,13 +277,14 @@ class Daqual:
         s=df[p['column']].to_list()
 
         m=set(master[p['master_column']].to_list())
+        used=set()
         original_count=len(m)
         c=0
         for i in m:
             if i in s:
-                m.remove(i)
+                used.add(i)
 
-        score = (original_count-len(m))/original_count
+        score = len(used)/original_count
 
         return score
 
@@ -291,7 +301,7 @@ class Daqual:
         else:
             return 0
 
-
+    # TODO - need to allow a generic comparison basis, e.g. just "more than" or "less than"
     # get the % of rows expected; if you get too many columns, it still returns a % showing your overage, upto a maximum
     # if you have double or more the number of rows desired, the returned score is 0
     #
@@ -304,8 +314,16 @@ class Daqual:
         if comparison != None:
             comparison_df = self.get_dataframe(comparison)
             comparison_row_count = len(comparison_df.index)
-            expected_row_count = comparison_row_count + p.get('expected_delta')
-            score = row_count / expected_row_count
+
+            if p.get('expected_delta') == '>=':
+                if row_count>=comparison_row_count:
+                    return 1
+                else:
+                    return 0
+
+            else:
+                expected_row_count = comparison_row_count + p.get('expected_delta')
+                score = row_count / expected_row_count
         else:
             score = row_count/p['expected_row_count']
 
@@ -351,11 +369,18 @@ class Daqual:
 
 
     def score_number(self,objectname, p):
-        if self.score_float(objectname,p):
+        if score_float(self,objectname,p):
             return 1
         else:
-            return self.score_int(objectname,p)
+            return score_int(self,objectname,p)
 
+
+    def score_date(self, objectname, p):
+        try:
+            x = pd.to_datetime(self.get_dataframe(objectname)[p['column']], infer_datetime_format=True, errors='raise')
+        except BaseException as e:
+            return 0
+        return 1
 
     # TODO - need to arrange for ordering/sorting (generally) with DF's
 
@@ -373,10 +398,24 @@ class Daqual:
     #
     def score_comparison(self, objectname,p):
         df = self.get_dataframe(objectname).copy()
-        comparison = self.get_dataframe(p['comparison']).copy()
+        comparison = self.get_dataframe(p['comparison']).copy() # we will need this later to work ou
 
         # TODO - do we keep the natural ordering of the file/DF or do we (optionally?) force the ordering with a sort?
+
         # TODO - need to add aggregation-based comparison (e.g. groupby sum and mean) capability
+        # if we have a grouping construct then re-shape the dataframes into the appropriate aggregations of themselves
+        if 'groupby' in p.keys():
+            columns = p['groupby']['columns']
+            aggregation = ['groupby']['aggregation']
+
+            if aggregation == 'sum':
+                df = df.groupby(columns).sum()
+                comparison = comparison(columns).sum()
+            elif aggregation == 'mean':
+                df = df.groupby(columns).mean()
+                comparison = comparison(columns).mean()
+
+        original_rows = len(comparison)
 
 
         # make sure the two datasets have the same number of rows for a trivial comparison
@@ -427,7 +466,7 @@ class Daqual:
                                              # as a result of a comparison in any case
 
         # Need to use the original comparison length actually, since we potentially added some blank rows
-        quality = difference_count/len(self.get_dataframe(p['comparison']))
+        quality = difference_count/original_rows
 
         return quality
 
@@ -452,9 +491,69 @@ class Daqual:
 
         return difference
 
+    # convenience function to allow "no function" for scoring
+    def score_1(x, y, z):
+        return 1
+
     # convenience function to allow "no function" for providers (e.g. see file_system_provider below)
     def nothing(x,y,z):
         return None
+
+        # TODO - need to add (customizable) calendar capability, to return a date corresponding to next/previous given an existing date
+
+        # customcalendar:
+        # schedule="daily", "weekly", "monthly", "workingdays", custom
+        # except: "weekends", "holidays", custom
+        # exceptthen: "next", "nextday"
+
+    def calc_date(currentDate, custom_calendar, isoabbreviated, customdelta=1):
+        # build a couple of lists of holidays that we want to exclude from our returnable date
+        iso_holidays=[]
+        for h in [x for x in custom_calendar['holidays'] if len(x)==10]: # so if these are full iso dates, then convert them to date objects
+            iso_holidays.append(date.fromisoformat(h))
+        recurring_holidays = [x for x in custom_calendar['holidays'] if len(x)==5]
+
+        startingdate=date.fromisoformat(currentDate)
+        if custom_calendar['schedule'] == 'workingdays':
+            delta = timedelta(days=1)
+        elif custom_calendar['schedule'] == 'daily':
+            delta = timedelta(days=1)
+        elif custom_calendar['schedule'] == 'weekly':
+            delta = timedelta(days=7)
+        else:
+            delta = timedelta(days=1)
+        # if custom_calendar['schedule'] == 'monthly': # need to think what this means
+        #     delta = timedelta()
+        finaldate = startingdate + delta*customdelta
+
+        # now correct for the possibility that we've ended up on an invalid/holiday date, in which case roll forward
+        # by a day at a time until we hit a valid date
+        oneday = timedelta(days=1)
+        while  (finaldate in iso_holidays or
+               ((str(finaldate.month) + '-' + str(finaldate.day)) in recurring_holidays) or
+               (custom_calendar['schedule']=="workingdays" and finaldate.weekday() > 4)):
+            finaldate+=(oneday*customdelta)
+
+        d=finaldate.isoformat()
+
+        if isoabbreviated==False:
+            return d
+        else:
+            return ''.join([x for x in d if x!='-']) # strip out the hyphens from the ISO dat
+
+    gb_holidays = ['2019-01-01', '2019-04-19', '2019-04-22','2019-05-06','2019-05-27','2019-08-26','2019-12-25','2019-12-26']
+    us_holidays = ['2019-01-01', '2019-01-21', '2019-05-27','2019-07-04','2019-09-02','2019-11-28','2019-12-25']
+    custom_calendar = {
+            "schedule": "workingdays",
+            "holidays": gb_holidays
+        }
+
+    def get_next_date(currentDate, custom_calendar, isoabbreviated=False):
+        return Daqual.calc_date(currentDate, custom_calendar, isoabbreviated, customdelta=1)
+
+    def get_prev_date(currentDate, custom_calendar, isoabbreviated=False):
+        return Daqual.calc_date(currentDate, custom_calendar, isoabbreviated, customdelta=-1)
+
 
     # Define some function mappings for provider-specific behaviour
     file_system_provider = {
