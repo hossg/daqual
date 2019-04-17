@@ -406,11 +406,11 @@ class Daqual:
         # if we have a grouping construct then re-shape the dataframes into the appropriate aggregations of themselves
         if 'groupby' in p.keys():
             columns = p['groupby']['columns']
-            aggregation = ['groupby']['aggregation']
+            aggregation = p['groupby'].get('aggregation')
 
             if aggregation == 'sum':
                 df = df.groupby(columns).sum()
-                comparison = comparison(columns).sum()
+                comparison = comparison.groupby(columns).sum()
             elif aggregation == 'mean':
                 df = df.groupby(columns).mean()
                 comparison = comparison(columns).mean()
@@ -436,7 +436,7 @@ class Daqual:
 
         # prepare an "adjusted series", with upper and lower bounds, to compare with our comparison series
         adjusted_series = df.copy()
-        if p['delta']:
+        if 'delta' in p:
             adjusted_series['daqual_upper_bound'] = adjusted_series[p['column']] + p['delta']
             adjusted_series['daqual_lower_bound'] = adjusted_series[p['column']] - p['delta']
         elif 'factor' in p:
@@ -499,7 +499,6 @@ class Daqual:
     def nothing(x,y,z):
         return None
 
-        # TODO - need to add (customizable) calendar capability, to return a date corresponding to next/previous given an existing date
 
         # customcalendar:
         # schedule="daily", "weekly", "monthly", "workingdays", custom
@@ -541,9 +540,11 @@ class Daqual:
         else:
             return ''.join([x for x in d if x!='-']) # strip out the hyphens from the ISO dat
 
+    # could automate this by making use of:http://kayaposoft.com/enrico/
+
     gb_holidays = ['2019-01-01', '2019-04-19', '2019-04-22','2019-05-06','2019-05-27','2019-08-26','2019-12-25','2019-12-26']
     us_holidays = ['2019-01-01', '2019-01-21', '2019-05-27','2019-07-04','2019-09-02','2019-11-28','2019-12-25']
-    custom_calendar = {
+    default_calendar = {
             "schedule": "workingdays",
             "holidays": gb_holidays
         }
