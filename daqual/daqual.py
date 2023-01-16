@@ -30,7 +30,7 @@ class Daqual:
     global score_number
     global score_float
     global score_int
-    global score_match
+    global score_column_format
     global score_column_count
     global score_comparison
     global score_date
@@ -205,13 +205,15 @@ class Daqual:
         return (average_quality, self.object_list) # return also the actual list of dataframes, files, etc. Necessary?
 
 
-    # get the % of columns expected; if you get too many columns, it still returns a % showing your overage, upto a maximum
-    # if you have double or more the number of colums desired, the returned score is 0
-    #
-    # param: expected_n - the number of expected columns
+    '''
+    get the % of columns expected; if you get too many columns, it still returns a % showing your overage, upto a maximum
+    if you have double or more the number of colums desired, the returned score is 0
+    
+    param: expected_columns - the number of expected columns
+    '''
     def score_column_count(self, object_name, p):
         dataframe = self.get_dataframe(object_name)
-        score=len(dataframe.columns)/p['expected_n']
+        score=len(dataframe.columns)/p['expected_columns']
         if score <= 1:
             return score
         if (score > 2):
@@ -219,7 +221,7 @@ class Daqual:
         elif (score > 1):
             score = 2 - score
 
-        logger.warn("Object {} has {} columns, expecting only {}".format(dataframe.objectname,len(dataframe.columns),p['expected_n']))
+        logger.warn("Object {} has {} columns, expecting only {}".format(dataframe.objectname,len(dataframe.columns),p['expected_columns']))
         return score
 
 
@@ -325,7 +327,7 @@ class Daqual:
                 expected_row_count = comparison_row_count + p.get('expected_delta')
                 score = row_count / expected_row_count
         else:
-            score = row_count/p['expected_row_count']
+            score = row_count/p['expected_rows']
 
         if score <= 1:
             return score
@@ -339,12 +341,14 @@ class Daqual:
     # score a column for its match against a regular expression, returnint the % of rows that match the regex
     #
     # param: match - the regex to use, column - the column to match
-    def score_match(self,object_name, p):
+    def score_column_format(self,object_name, p):
         df = self.get_dataframe(object_name)
         r = p['match']
         pattern = re.compile(r)
         score=0
         for i in df[p['column']]:
+            if i is None or pd.isnull(i):
+                i=""
             if pattern.match(i):
                 score+=1
 
@@ -496,7 +500,7 @@ class Daqual:
         return 1
 
     # convenience function to allow "no function" for providers (e.g. see file_system_provider below)
-    def nothing(x,y,z):
+    def qnothing(x,y,z):
         return None
 
 
@@ -559,7 +563,7 @@ class Daqual:
     # Define some function mappings for provider-specific behaviour
     file_system_provider = {
         'retrieve': retrieve_object_from_filesystem,
-        'tag': nothing,    # filesystem provider doesn't currently support tagging
+        'tag': None,    # filesystem provider doesn't currently support tagging
 
         # root of where to find files for this provider
         "file_system_provider_root":'../examples/'
